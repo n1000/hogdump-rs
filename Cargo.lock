@@ -20,6 +20,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "bytes-cast"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d434f9a4ecbe987e7ccfda7274b6f82ea52c9b63742565a65cb5e8ba0f2c452"
+dependencies = [
+ "bytes-cast-derive",
+]
+
+[[package]]
+name = "bytes-cast-derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b13e0e8ffc91021ba28dc98b2ea82099ba4ec07655279c21bfa3313ed96708fc"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "clap"
 version = "4.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -75,6 +95,7 @@ dependencies = [
 name = "hogdump"
 version = "0.1.0"
 dependencies = [
+ "bytes-cast",
  "clap",
 ]
 

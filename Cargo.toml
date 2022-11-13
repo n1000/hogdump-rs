@@ -8,3 +8,4 @@ description = "HOG File Dump Utility"
 
 [dependencies]
 clap = { version = "4.0.23", features = ["derive"] }
+bytes-cast = { version = "0.2.0" }
