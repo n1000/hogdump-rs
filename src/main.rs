@@ -13,11 +13,10 @@ struct Cli {
     #[arg(short = 'x', long)]
     extract: bool,
 
-    /*
-        /// Create hog file out of the provided file(s)
-        #[arg(short = 'c', long)]
-        create: PathBuf,
-    */
+    /// Create hog file out of the provided file(s)
+    #[arg(short = 'c', long)]
+    create: Option<PathBuf>,
+
     /// Overwrite files
     #[arg(short = 'o', long)]
     overwrite: bool,
@@ -37,14 +36,20 @@ const HOG_SIGNATURE: [u8; 3] = *b"DHF";
 enum HogError {
     OpenHogFailure(io::Error),
     OpenOutputFailure(io::Error),
+    OpenInputFailure(io::Error),
     SignatureReadFailure(io::Error),
+    SignatureWriteFailure(io::Error),
     InvalidSignature,
     ReadHeaderError(io::Error),
     HeaderDecodeError(bytes_cast::FromBytesError),
     UnexpectedEof,
     InvalidFilename,
     ExtractFailure(io::Error),
+    AppendToHogFailure(io::Error),
     SeekFailure(io::Error),
+    HogFilenameTooLong,
+    FileTooLarge(u64),
+    BadHogFilename(String),
 }
 
 impl fmt::Display for HogError {
@@ -52,14 +57,29 @@ impl fmt::Display for HogError {
         match self {
             HogError::OpenHogFailure(e) => write!(f, "failed to open HOG file: {}", e),
             HogError::OpenOutputFailure(e) => write!(f, "failed to open output file: {}", e),
+            HogError::OpenInputFailure(e) => write!(f, "failed to open input file: {}", e),
             HogError::SignatureReadFailure(e) => write!(f, "reading HOG signature failed: {}", e),
+            HogError::SignatureWriteFailure(e) => write!(f, "writing HOG signature failed: {}", e),
             HogError::InvalidSignature => write!(f, "file did not have correct HOG signature"),
             HogError::ReadHeaderError(e) => write!(f, "reading HOG record header failed: {}", e),
             HogError::HeaderDecodeError(e) => write!(f, "decoding HOG record header failed: {}", e),
             HogError::UnexpectedEof => write!(f, "unexpected end of file encountered"),
             HogError::InvalidFilename => write!(f, "invalid filename found in HOG record header"),
             HogError::ExtractFailure(e) => write!(f, "failed to save file from HOG to disk: {}", e),
+            HogError::AppendToHogFailure(e) => write!(f, "failed to append file to HOG: {}", e),
             HogError::SeekFailure(e) => write!(f, "failed to seek in HOG file: {}", e),
+            HogError::HogFilenameTooLong => write!(
+                f,
+                "filename cannot be stored in HOG file (it must be < 13 ASCII characters long)"
+            ),
+            HogError::FileTooLarge(len) => write!(
+                f,
+                "file of {} bytes cannot be stored in HOG (it is too large)",
+                len
+            ),
+            HogError::BadHogFilename(name) => {
+                write!(f, "could not find filename basename of file: {}", name)
+            }
         }
     }
 }
@@ -149,7 +169,7 @@ impl HogExtractInfo {
 }
 
 fn hog_dump(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, HogError> {
-    let mut hog_file = HogFile::new(path)?;
+    let mut hog_file = HogFileReader::new(path)?;
     let mut hog_extract_info = HogExtractInfo::new();
     let mut iter = hog_file.records()?;
 
@@ -171,7 +191,7 @@ fn hog_dump(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, 
                 } else {
                     match OpenOptions::new()
                         .write(true)
-                        .create_new(!overwrite)
+                        .create_new(true)
                         .open(hdr.filename)
                     {
                         Ok(f) => BufWriter::new(f),
@@ -220,7 +240,7 @@ impl HogInfoSummary {
 }
 
 fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, HogError> {
-    let mut hog_file = HogFile::new(path)?;
+    let mut hog_file = HogFileReader::new(path)?;
     let mut hog_info_summary = HogInfoSummary::new();
     let mut iter = hog_file.records()?;
 
@@ -251,15 +271,73 @@ fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, Ho
     Ok(hog_info_summary)
 }
 
-// Create iterator for HogFile, to iterate over each record.
-// Then, reimplement hog_info and hog_dump using that iterator.
+struct HogFileWriter {
+    file: BufWriter<File>,
+}
 
-struct HogFile {
+impl HogFileWriter {
+    /// Opens an existing HOG file.
+    ///
+    /// If this function encounters an error opening the file, or validating the magic signature,
+    /// it returns an Err.
+    fn new(path: &impl AsRef<Path>) -> Result<Self, HogError> {
+        let file = File::create(path).map_err(HogError::OpenHogFailure)?;
+        let mut file = BufWriter::new(file);
+
+        file.write_all(&HOG_SIGNATURE)
+            .map_err(HogError::SignatureWriteFailure)?;
+
+        Ok(Self { file })
+    }
+
+    fn append_file(&mut self, path: &impl AsRef<Path>) -> Result<u64, HogError> {
+        let in_file = File::open(path).map_err(HogError::OpenInputFailure)?;
+        let mut in_file = BufReader::new(in_file);
+        let file_len = in_file
+            .get_ref()
+            .metadata()
+            .map_err(HogError::AppendToHogFailure)?
+            .len();
+
+        if file_len > u32::MAX.into() {
+            return Err(HogError::FileTooLarge(file_len));
+        }
+
+        let file_name = match path.as_ref().file_name() {
+            Some(x) => x.to_string_lossy(),
+            None => {
+                return Err(HogError::BadHogFilename(
+                    path.as_ref().to_string_lossy().into_owned(),
+                ))
+            }
+        };
+
+        let mut out_filename: Vec<u8> = file_name.bytes().collect();
+        if out_filename.len() >= 13 {
+            return Err(HogError::HogFilenameTooLong);
+        }
+
+        out_filename.resize(13, 0);
+
+        let hdr = RawHogFileHeader {
+            filename: out_filename.try_into().unwrap(),
+            length: unaligned::U32Le::from(file_len as u32),
+        };
+
+        self.file
+            .write_all(hdr.as_bytes())
+            .map_err(HogError::AppendToHogFailure)?;
+
+        std::io::copy(&mut in_file, &mut self.file).map_err(HogError::AppendToHogFailure)
+    }
+}
+
+struct HogFileReader {
     file: BufReader<File>,
 }
 
-impl HogFile {
-    /// Open a new HOG file.
+impl HogFileReader {
+    /// Opens an existing HOG file.
     ///
     /// If this function encounters an error opening the file, or validating the magic signature,
     /// it returns an Err.
@@ -296,7 +374,7 @@ impl HogFile {
 }
 
 struct HogRecordIter<'a> {
-    hogfile: &'a mut HogFile,
+    hogfile: &'a mut HogFileReader,
     cur_file_len: Option<u64>,
     hit_error: bool,
 }
@@ -414,47 +492,100 @@ impl<'a> HogRecordIter<'a> {
     }
 }
 
+fn hog_dump_files(files: &[impl AsRef<Path>], overwrite: bool) {
+    for file in files {
+        match hog_dump(file, overwrite) {
+            Ok(extract_info) => {
+                println!(
+                    "Processed {} files, extracted {} files ({} bytes), skipped {} files.",
+                    extract_info.files_processed,
+                    extract_info.files_extracted,
+                    extract_info.bytes_extracted,
+                    extract_info.files_skipped
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "error while processing HOG file \"{}\": {}",
+                    file.as_ref().display(),
+                    e
+                );
+            }
+        }
+    }
+}
+
+fn hog_dump_info(files: &[impl AsRef<Path>], verbose: bool) {
+    for file in files {
+        match hog_info(file, verbose) {
+            Ok(hog_info_summary) => {
+                println!(
+                    "{}: contains {} files ({} bytes).",
+                    file.as_ref().display(),
+                    hog_info_summary.num_files,
+                    hog_info_summary.num_bytes,
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "error while processing HOG file \"{}\": {}",
+                    file.as_ref().display(),
+                    e
+                );
+            }
+        }
+    }
+}
+
+fn hog_create(out_path: &impl AsRef<Path>, files: &[impl AsRef<Path>], verbose: bool) {
+    let mut hog_file = match HogFileWriter::new(out_path) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!(
+                "error creating output HOG file \"{}\": {}",
+                out_path.as_ref().display(),
+                e
+            );
+
+            std::process::exit(1);
+        }
+    };
+
+    for file in files {
+        match hog_file.append_file(file) {
+            Ok(length) => {
+                println!(
+                    "{}: appended file \"{}\" ({} bytes).",
+                    out_path.as_ref().display(),
+                    file.as_ref().display(),
+                    length,
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "error occurred while appending \"{}\" to HOG file \"{}\": {}",
+                    file.as_ref().display(),
+                    out_path.as_ref().display(),
+                    e
+                );
+            }
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    for file in &cli.file {
-        if cli.extract {
-            match hog_dump(file, cli.overwrite) {
-                Ok(extract_info) => {
-                    println!(
-                        "Processed {} files, extracted {} files ({} bytes), skipped {} files.",
-                        extract_info.files_processed,
-                        extract_info.files_extracted,
-                        extract_info.bytes_extracted,
-                        extract_info.files_skipped
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "error while processing HOG file \"{}\": {}",
-                        file.display(),
-                        e
-                    );
-                }
-            }
-        } else {
-            match hog_info(file, cli.verbose) {
-                Ok(hog_info_summary) => {
-                    println!(
-                        "{}: contains {} files ({} bytes).",
-                        file.display(),
-                        hog_info_summary.num_files,
-                        hog_info_summary.num_bytes,
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "error while processing HOG file \"{}\": {}",
-                        file.display(),
-                        e
-                    );
-                }
-            }
-        }
+    if cli.extract && cli.create.is_some() {
+        eprintln!("error: --extract and --create are mutually exclusive operations.");
+        std::process::exit(1);
+    }
+
+    if cli.extract {
+        hog_dump_files(&cli.file, cli.overwrite);
+    } else if let Some(out_file) = cli.create {
+        hog_create(&out_file, &cli.file, cli.verbose);
+    } else {
+        hog_dump_info(&cli.file, cli.verbose);
     }
 }
