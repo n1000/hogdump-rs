@@ -422,7 +422,7 @@ impl<'a> Iterator for HogRecordIter<'a> {
 ///
 /// If any other error is encountered, it is returned, and the number of bytes copied is
 /// unspecified.
-pub fn copy_n<R, W>(reader: &mut R, writer: &mut W, n: u64) -> io::Result<u64>
+fn copy_n<R, W>(reader: &mut R, writer: &mut W, n: u64) -> io::Result<u64>
 where
     R: Read + ?Sized,
     W: Write + ?Sized,
@@ -461,7 +461,7 @@ where
 ///
 /// If any other error is encountered, it is returned, and the number of bytes copied is
 /// unspecified.
-pub fn copy_exactly_n<R, W>(reader: &mut R, writer: &mut W, n: u64) -> io::Result<u64>
+fn copy_exactly_n<R, W>(reader: &mut R, writer: &mut W, n: u64) -> io::Result<u64>
 where
     R: Read + ?Sized,
     W: Write + ?Sized,
