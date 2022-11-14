@@ -2,18 +2,20 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use bytes_cast::{unaligned, BytesCast};
+use bytemuck::{Pod, Zeroable};
 
 use crate::error::HogError;
 use crate::util;
 
 const HOG_SIGNATURE: [u8; 3] = *b"DHF";
 
-#[derive(BytesCast)]
-#[repr(C)]
+#[derive(Pod, Zeroable, Copy, Clone)]
+#[repr(C, packed)]
 struct RawHogRecord {
     filename: [u8; 13],
-    length: unaligned::U32Le,
+
+    // This is little endian.
+    length: u32,
 }
 
 impl RawHogRecord {
@@ -35,7 +37,10 @@ impl TryFrom<&RawHogRecord> for HogRecord {
     fn try_from(raw_hdr: &RawHogRecord) -> Result<Self, Self::Error> {
         Ok(HogRecord {
             filename: raw_hdr.filename_as_str()?.into(),
-            length: raw_hdr.length.get(),
+
+            // Raw record format is little endian, so convert to platform
+            // native.
+            length: u32::from_le(raw_hdr.length),
         })
     }
 }
@@ -59,8 +64,7 @@ fn read_record_header(r: &mut impl Read) -> Result<Option<HogRecord>, HogError> 
                     offset += len;
 
                     if offset == HDR_LEN {
-                        let (raw_hdr, _) = RawHogRecord::from_bytes(&raw_bytes)
-                            .map_err(HogError::HeaderDecodeError)?;
+                        let raw_hdr: &RawHogRecord = bytemuck::from_bytes(&raw_bytes);
 
                         return Ok(Some(raw_hdr.try_into()?));
                     }
@@ -129,11 +133,13 @@ impl HogFileWriter {
 
         let hdr = RawHogRecord {
             filename: out_filename.try_into().unwrap(),
-            length: unaligned::U32Le::from(file_len as u32),
+
+            // Convert to LE when storing into the raw record.
+            length: u32::to_le(file_len as u32),
         };
 
         self.file
-            .write_all(hdr.as_bytes())
+            .write_all(bytemuck::bytes_of(&hdr))
             .map_err(HogError::AppendToHogFailure)?;
 
         std::io::copy(&mut in_file, &mut self.file).map_err(HogError::AppendToHogFailure)
