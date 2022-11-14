@@ -1,3 +1,9 @@
+//!
+//! HOG File Dump Utility
+//!
+//! This utility can extract and create Descent HOG files.
+//!
+
 use clap::Parser;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, ErrorKind};
