@@ -83,7 +83,7 @@ impl HogFileWriter {
     ///
     /// If this function encounters an error opening the file, or writing the magic signature
     /// bytes, it returns an Err.
-    pub fn new(path: &impl AsRef<Path>) -> Result<Self, HogError> {
+    pub fn create(path: &impl AsRef<Path>) -> Result<Self, HogError> {
         let file = File::create(path).map_err(HogError::OpenHogFailure)?;
         let mut file = BufWriter::new(file);
 
@@ -149,7 +149,7 @@ impl HogFileReader {
     ///
     /// If this function encounters an error opening the file, or validating the magic signature,
     /// it returns an Err.
-    pub fn new(path: &impl AsRef<Path>) -> Result<Self, HogError> {
+    pub fn open(path: &impl AsRef<Path>) -> Result<Self, HogError> {
         let file = File::open(path).map_err(HogError::OpenHogFailure)?;
         let mut file = BufReader::new(file);
         let mut signature = [0; 3];

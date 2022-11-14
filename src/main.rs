@@ -53,7 +53,7 @@ impl HogExtractInfo {
 }
 
 fn hog_dump(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, HogError> {
-    let mut hog_file = HogFileReader::new(path)?;
+    let mut hog_file = HogFileReader::open(path)?;
     let mut hog_extract_info = HogExtractInfo::new();
     let mut iter = hog_file.records()?;
 
@@ -124,7 +124,7 @@ impl HogInfoSummary {
 }
 
 fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, HogError> {
-    let mut hog_file = HogFileReader::new(path)?;
+    let mut hog_file = HogFileReader::open(path)?;
     let mut hog_info_summary = HogInfoSummary::new();
     let mut iter = hog_file.records()?;
 
@@ -202,7 +202,7 @@ fn hog_dump_info(files: &[impl AsRef<Path>], verbose: bool) {
 
 // TODO: add summary stats at the end, similar to hog_dump_info() and hog_dump_files()
 fn hog_create(out_path: &impl AsRef<Path>, files: &[impl AsRef<Path>], _verbose: bool) {
-    let mut hog_file = match HogFileWriter::new(out_path) {
+    let mut hog_file = match HogFileWriter::create(out_path) {
         Ok(x) => x,
         Err(e) => {
             eprintln!(
