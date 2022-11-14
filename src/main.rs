@@ -205,12 +205,12 @@ fn hog_dump(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, 
     Ok(hog_extract_info)
 }
 
-struct HogInfo {
+struct HogInfoSummary {
     num_files: u64,
     num_bytes: u64,
 }
 
-impl HogInfo {
+impl HogInfoSummary {
     fn new() -> Self {
         Self {
             num_files: 0,
@@ -219,9 +219,9 @@ impl HogInfo {
     }
 }
 
-fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfo, HogError> {
+fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, HogError> {
     let mut hog_file = HogFile::new(path)?;
-    let mut hog_info = HogInfo::new();
+    let mut hog_info_summary = HogInfoSummary::new();
     let mut iter = hog_file.records()?;
 
     loop {
@@ -236,8 +236,8 @@ fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfo, HogError>
                     );
                 }
 
-                hog_info.num_files += 1;
-                hog_info.num_bytes += u64::from(hdr.length);
+                hog_info_summary.num_files += 1;
+                hog_info_summary.num_bytes += u64::from(hdr.length);
             }
             Some(Err(e)) => {
                 return Err(e);
@@ -248,7 +248,7 @@ fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfo, HogError>
         }
     }
 
-    Ok(hog_info)
+    Ok(hog_info_summary)
 }
 
 // Create iterator for HogFile, to iterate over each record.
@@ -438,12 +438,12 @@ fn main() {
             }
         } else {
             match hog_info(file, cli.verbose) {
-                Ok(hog_info) => {
+                Ok(hog_info_summary) => {
                     println!(
                         "{}: contains {} files ({} bytes).",
                         file.display(),
-                        hog_info.num_files,
-                        hog_info.num_bytes,
+                        hog_info_summary.num_files,
+                        hog_info_summary.num_bytes,
                     );
                 }
                 Err(e) => {
