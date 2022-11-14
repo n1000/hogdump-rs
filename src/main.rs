@@ -400,7 +400,8 @@ where
 }
 
 impl<'a> HogRecordIter<'a> {
-    fn copy_cur_file(&mut self, out_f: &mut BufWriter<File>) -> Result<(), HogError> {
+    /// Copy the last encountered file to the destation buffer.
+    fn copy_cur_file(&mut self, out_f: &mut impl Write) -> Result<(), HogError> {
         match self.cur_file_len.take() {
             Some(length) => {
                 copy_exactly_n(&mut self.hogfile.file, out_f, length as u64)
