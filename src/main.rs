@@ -86,12 +86,12 @@ impl fmt::Display for HogError {
 
 #[derive(BytesCast)]
 #[repr(C)]
-struct RawHogFileHeader {
+struct RawHogRecord {
     filename: [u8; 13],
     length: unaligned::U32Le,
 }
 
-impl RawHogFileHeader {
+impl RawHogRecord {
     fn filename_as_str(&self) -> Result<&str, HogError> {
         let filename_part = self.filename.splitn(2, |x| *x == 0).next().unwrap();
 
@@ -99,25 +99,24 @@ impl RawHogFileHeader {
     }
 }
 
-// TODO: rename this thing to be called a HogRecordHeader, or similar
-struct HogFileHeader {
+struct HogRecord {
     filename: PathBuf,
     length: u32,
 }
 
-impl TryFrom<&RawHogFileHeader> for HogFileHeader {
+impl TryFrom<&RawHogRecord> for HogRecord {
     type Error = HogError;
 
-    fn try_from(raw_hdr: &RawHogFileHeader) -> Result<Self, Self::Error> {
-        Ok(HogFileHeader {
+    fn try_from(raw_hdr: &RawHogRecord) -> Result<Self, Self::Error> {
+        Ok(HogRecord {
             filename: raw_hdr.filename_as_str()?.into(),
             length: raw_hdr.length.get(),
         })
     }
 }
 
-fn read_record_header(r: &mut impl Read) -> Result<Option<HogFileHeader>, HogError> {
-    const HDR_LEN: usize = std::mem::size_of::<RawHogFileHeader>();
+fn read_record_header(r: &mut impl Read) -> Result<Option<HogRecord>, HogError> {
+    const HDR_LEN: usize = std::mem::size_of::<RawHogRecord>();
     let mut raw_bytes = [0; HDR_LEN];
     let mut offset = 0;
 
@@ -135,7 +134,7 @@ fn read_record_header(r: &mut impl Read) -> Result<Option<HogFileHeader>, HogErr
                     offset += len;
 
                     if offset == HDR_LEN {
-                        let (raw_hdr, _) = RawHogFileHeader::from_bytes(&raw_bytes)
+                        let (raw_hdr, _) = RawHogRecord::from_bytes(&raw_bytes)
                             .map_err(HogError::HeaderDecodeError)?;
 
                         return Ok(Some(raw_hdr.try_into()?));
@@ -319,7 +318,7 @@ impl HogFileWriter {
 
         out_filename.resize(13, 0);
 
-        let hdr = RawHogFileHeader {
+        let hdr = RawHogRecord {
             filename: out_filename.try_into().unwrap(),
             length: unaligned::U32Le::from(file_len as u32),
         };
@@ -380,7 +379,7 @@ struct HogRecordIter<'a> {
 }
 
 impl<'a> Iterator for HogRecordIter<'a> {
-    type Item = Result<HogFileHeader, HogError>;
+    type Item = Result<HogRecord, HogError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.hit_error {
@@ -555,7 +554,7 @@ fn hog_create(out_path: &impl AsRef<Path>, files: &[impl AsRef<Path>], verbose: 
         match hog_file.append_file(file) {
             Ok(length) => {
                 println!(
-                    "{}: appended file \"{}\" ({} bytes).",
+                    "{}: added file \"{}\" ({} bytes).",
                     out_path.as_ref().display(),
                     file.as_ref().display(),
                     length,
