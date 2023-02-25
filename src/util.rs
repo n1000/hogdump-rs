@@ -60,3 +60,75 @@ where
         Err(e) => Err(e),
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_copy_n() {
+        let mut r1: Vec<u8> = Vec::new();
+        let mut r2: Vec<u8> = Vec::new();
+        let mut w: Vec<u8> = Vec::new();
+
+        r1.extend(b"testing");
+        r2.extend(b"elephant");
+        w.extend(b"original_input");
+
+        // Don't copy anything
+        let result = copy_n(&mut r1.as_slice(), &mut w.as_mut_slice(), 0);
+        assert_eq!(result.unwrap(), 0);
+        assert_eq!(b"original_input", &w[..]);
+
+        // Copy 4 bytes
+        let result = copy_n(&mut r1.as_slice(), &mut w.as_mut_slice(), 4);
+        assert_eq!(result.unwrap(), 4);
+        assert_eq!(b"testinal_input", &w[..]);
+
+        // Copy 1 byte
+        let result = copy_n(&mut r2.as_slice(), &mut w.as_mut_slice(), 1);
+        assert_eq!(result.unwrap(), 1);
+        assert_eq!(b"eestinal_input", &w[..]);
+
+        // Attempt to copy 100 bytes (ends early)
+        let result = copy_n(&mut r2.as_slice(), &mut w.as_mut_slice(), 100);
+        assert_eq!(result.unwrap(), 8);
+        assert_eq!(b"elephant_input", &w[..]);
+    }
+
+    #[test]
+    fn test_copy_exactly_n() {
+        let mut r1: Vec<u8> = Vec::new();
+        let mut r2: Vec<u8> = Vec::new();
+        let mut w: Vec<u8> = Vec::new();
+
+        r1.extend(b"testing");
+        r2.extend(b"elephant");
+        w.extend(b"original_input");
+
+        // Don't copy anything
+        let result = copy_exactly_n(&mut r1.as_slice(), &mut w.as_mut_slice(), 0);
+        assert_eq!(result.unwrap(), 0);
+        assert_eq!(b"original_input", &w[..]);
+
+        // Copy 4 bytes
+        let result = copy_exactly_n(&mut r1.as_slice(), &mut w.as_mut_slice(), 4);
+        assert_eq!(result.unwrap(), 4);
+        assert_eq!(b"testinal_input", &w[..]);
+
+        // Copy 1 byte
+        let result = copy_exactly_n(&mut r2.as_slice(), &mut w.as_mut_slice(), 1);
+        assert_eq!(result.unwrap(), 1);
+        assert_eq!(b"eestinal_input", &w[..]);
+
+        // Attempt to copy 8 bytes (exact string length)
+        let result = copy_exactly_n(&mut r2.as_slice(), &mut w.as_mut_slice(), 8);
+        assert_eq!(result.unwrap(), 8);
+        assert_eq!(b"elephant_input", &w[..]);
+
+        // Attempt to copy 100 bytes (ends early)
+        let result = copy_exactly_n(&mut r1.as_slice(), &mut w.as_mut_slice(), 100);
+        assert!(result.is_err(), "too many bytes requested, should fail");
+        assert_eq!(b"testingt_input", &w[..]);
+    }
+}
