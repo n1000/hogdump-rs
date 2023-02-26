@@ -76,7 +76,7 @@ impl HogExtractInfo {
     }
 }
 
-fn hog_dump(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, HogError> {
+fn hog_extract(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, HogError> {
     let mut hog_file = HogFileReader::open(path)?;
     let mut hog_extract_info = HogExtractInfo::new();
     let mut iter = hog_file.records()?;
@@ -181,7 +181,7 @@ fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, Ho
 
 fn extract_hog_files(files: &[impl AsRef<Path>], overwrite: bool) {
     for file in files {
-        match hog_dump(file, overwrite) {
+        match hog_extract(file, overwrite) {
             Ok(extract_info) => {
                 println!(
                     "Processed {} files, extracted {} files ({} bytes), skipped {} files.",
