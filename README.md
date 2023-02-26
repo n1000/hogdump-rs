@@ -24,7 +24,9 @@ Options:
   -V, --version          Print version information
 ```
 
-## Example - Extract HOG file
+## Examples
+
+### Example - Extract HOG file
 
 ```console
 $ mkdir tmp && cd tmp
@@ -60,7 +62,7 @@ Processed 106 files, extracted 0 files (0 bytes), skipped 106 files.
 Adding the `-o` option: `hogdump -ox ../descent.hog` will cause the files to be
 overwritten.
 
-## Example - Create HOG file
+### Example - Create HOG file
 
 This example creates a new hog file called "new_descent.hog", from the files
 extracted in the previous example (in the `tmp` directory).
