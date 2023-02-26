@@ -77,7 +77,11 @@ new_descent.hog: added file "tmp/sun.bbm" (9296 bytes).
 new_descent.hog: added file "tmp/venus01.pcx" (41861 bytes).
 ```
 
-HOG files can only support filenames with 13 characters, and only the file
-base name is stored in the HOG file (not the complete path). For the example
-below the `tmp/` prefix is stripped off of the stored filename. Extracting the
-HOG later will not create a `tmp` directory.
+HOG files can only support filenames with lengths of up to 13 characters, and
+only the file base name is stored in the HOG file (not the complete path).
+
+In the example above the `tmp/` prefix is stripped off of the stored filename.
+Extracting the HOG later will not create a `tmp` directory.
+
+Attempting to store a file with a name longer than 13 characters will abort the
+file creation and display an error.
