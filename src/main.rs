@@ -58,6 +58,8 @@ struct Cli {
     file: Vec<PathBuf>,
 }
 
+// Summarizes what happened during the extraction process (returned by
+// hog_extract()).
 struct HogExtractInfo {
     files_processed: u64,
     files_extracted: u64,
@@ -76,6 +78,7 @@ impl HogExtractInfo {
     }
 }
 
+// Extracts a single HOG file
 fn hog_extract(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInfo, HogError> {
     let mut hog_file = HogFileReader::open(path)?;
     let mut hog_extract_info = HogExtractInfo::new();
@@ -133,6 +136,8 @@ fn hog_extract(path: &impl AsRef<Path>, overwrite: bool) -> Result<HogExtractInf
     Ok(hog_extract_info)
 }
 
+// Summarizes information about the contents of the HOG file. Returned by
+// hog_info().
 struct HogInfoSummary {
     num_files: u64,
     num_bytes: u64,
@@ -147,6 +152,8 @@ impl HogInfoSummary {
     }
 }
 
+// Displays information about the HOG file to the screen, such as file contents
+// and file sizes.
 fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, HogError> {
     let mut hog_file = HogFileReader::open(path)?;
     let mut hog_info_summary = HogInfoSummary::new();
@@ -179,6 +186,7 @@ fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, Ho
     Ok(hog_info_summary)
 }
 
+// Extracts multiple HOG files, using hog_extract()
 fn extract_hog_files(files: &[impl AsRef<Path>], overwrite: bool) {
     for file in files {
         match hog_extract(file, overwrite) {
@@ -202,6 +210,7 @@ fn extract_hog_files(files: &[impl AsRef<Path>], overwrite: bool) {
     }
 }
 
+// Displays information about multiple HOG files, using hog_info()
 fn display_hog_info(files: &[impl AsRef<Path>], verbose: bool) {
     for file in files {
         match hog_info(file, verbose) {
@@ -224,7 +233,7 @@ fn display_hog_info(files: &[impl AsRef<Path>], verbose: bool) {
     }
 }
 
-// TODO: add summary stats at the end, similar to display_hog_info() and extract_hog_files()
+// Creates a HOG file, adding the list of files provided on the command line.
 fn create_hog_file(out_path: &impl AsRef<Path>, files: &[impl AsRef<Path>], _verbose: bool) {
     let mut hog_file = match HogFileWriter::create(out_path) {
         Ok(x) => x,
