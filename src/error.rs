@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt;
 use std::io::{self};
 
@@ -19,6 +20,8 @@ pub enum HogError {
     FileTooLarge(u64),
     BadHogFilename(String),
 }
+
+impl Error for HogError {}
 
 impl fmt::Display for HogError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
