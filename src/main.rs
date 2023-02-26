@@ -161,7 +161,7 @@ fn hog_info(path: &impl AsRef<Path>, verbose: bool) -> Result<HogInfoSummary, Ho
     Ok(hog_info_summary)
 }
 
-fn hog_dump_files(files: &[impl AsRef<Path>], overwrite: bool) {
+fn extract_hog_files(files: &[impl AsRef<Path>], overwrite: bool) {
     for file in files {
         match hog_dump(file, overwrite) {
             Ok(extract_info) => {
@@ -184,7 +184,7 @@ fn hog_dump_files(files: &[impl AsRef<Path>], overwrite: bool) {
     }
 }
 
-fn hog_dump_info(files: &[impl AsRef<Path>], verbose: bool) {
+fn display_hog_info(files: &[impl AsRef<Path>], verbose: bool) {
     for file in files {
         match hog_info(file, verbose) {
             Ok(hog_info_summary) => {
@@ -206,8 +206,8 @@ fn hog_dump_info(files: &[impl AsRef<Path>], verbose: bool) {
     }
 }
 
-// TODO: add summary stats at the end, similar to hog_dump_info() and hog_dump_files()
-fn hog_create(out_path: &impl AsRef<Path>, files: &[impl AsRef<Path>], _verbose: bool) {
+// TODO: add summary stats at the end, similar to display_hog_info() and extract_hog_files()
+fn create_hog_file(out_path: &impl AsRef<Path>, files: &[impl AsRef<Path>], _verbose: bool) {
     let mut hog_file = match HogFileWriter::create(out_path) {
         Ok(x) => x,
         Err(e) => {
@@ -252,10 +252,10 @@ fn main() {
     }
 
     if cli.extract {
-        hog_dump_files(&cli.file, cli.overwrite);
+        extract_hog_files(&cli.file, cli.overwrite);
     } else if let Some(out_file) = cli.create {
-        hog_create(&out_file, &cli.file, cli.verbose);
+        create_hog_file(&out_file, &cli.file, cli.verbose);
     } else {
-        hog_dump_info(&cli.file, cli.verbose);
+        display_hog_info(&cli.file, cli.verbose);
     }
 }
