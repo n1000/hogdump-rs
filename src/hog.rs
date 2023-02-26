@@ -114,8 +114,8 @@ pub struct HogFileWriter {
 impl HogFileWriter {
     /// Creates a new HOG file and opens it in write-only mode.
     ///
-    /// If this function encounters an error opening the file, or writing the magic signature
-    /// bytes, it returns an Err.
+    /// If this function encounters an error opening the file, or writing the
+    /// magic signature bytes, it returns an Err.
     pub fn create(path: &impl AsRef<Path>) -> Result<Self, HogError> {
         let file = File::create(path).map_err(HogError::OpenHogFailure)?;
         let mut file = BufWriter::new(file);
@@ -126,11 +126,13 @@ impl HogFileWriter {
         Ok(Self { file })
     }
 
-    /// Appends a HOG file record header and the files contents to this HOG file.
+    /// Appends a HOG file record header and the files contents to this HOG
+    /// file.
     ///
-    /// Note that thare are special restrictions on the filenames that can be added to a HOG file.
-    /// In general, the file name is made up of 13 or fewer ASCII characters. This function will
-    /// return an error if the filename cannot be represented in a HOG file.
+    /// Note that thare are special restrictions on the filenames that can be
+    /// added to a HOG file.  In general, the file name is made up of 13 or
+    /// fewer ASCII characters. This function will return an error if the
+    /// filename cannot be represented in a HOG file.
     pub fn append_file(&mut self, path: &impl AsRef<Path>) -> Result<u64, HogError> {
         let in_file = File::open(path).map_err(HogError::OpenInputFailure)?;
         let mut in_file = BufReader::new(in_file);
