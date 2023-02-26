@@ -19,7 +19,7 @@
 //!
 //! HOG File Dump Utility
 //!
-//! This utility can extract and create Descent HOG files.
+//! This utility can extract and create Descent 1 HOG files.
 //!
 
 use clap::Parser;
