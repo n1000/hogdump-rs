@@ -27,28 +27,37 @@ use crate::util;
 
 const HOG_SIGNATURE: [u8; 3] = *b"DHF";
 
+// The "raw" HOG file record format, as contained in the HOG file on disk
 #[derive(Pod, Zeroable, Copy, Clone)]
 #[repr(C, packed)]
 struct RawHogRecord {
     filename: [u8; 13],
 
-    // This is little endian.
+    // On disk, this is little endian.
     length: u32,
 }
 
 impl RawHogRecord {
+    // In the raw, on disk record, the end of the filename is padded with "0"
+    // bytes. This function attempts to strip off the null padding, and then
+    // interpret the extracted bytes as UTF-8.
     fn filename_as_str(&self) -> Result<&str, HogError> {
+        // Strip off the null padding, if present.
         let filename_part = self.filename.splitn(2, |x| *x == 0).next().unwrap();
 
+        // Attempt to interpret as UTF-8, failing if decoding fails.
         std::str::from_utf8(filename_part).map_err(|_| HogError::InvalidFilename)
     }
 }
 
+// An easier to use HogRecord, derived from the RawHogRecord, taking care of
+// things such as endianness of the length field, and sanitizing the filename.
 pub struct HogRecord {
     pub filename: PathBuf,
     pub length: u32,
 }
 
+// Convert from a RawHogRecord to a HogRecord
 impl TryFrom<&RawHogRecord> for HogRecord {
     type Error = HogError;
 
@@ -63,6 +72,7 @@ impl TryFrom<&RawHogRecord> for HogRecord {
     }
 }
 
+// Attempt to read a HOG file record header, consuming just the header.
 fn read_record_header(r: &mut impl Read) -> Result<Option<HogRecord>, HogError> {
     const HDR_LEN: usize = std::mem::size_of::<RawHogRecord>();
     let mut raw_bytes = [0; HDR_LEN];
@@ -96,6 +106,7 @@ fn read_record_header(r: &mut impl Read) -> Result<Option<HogRecord>, HogError> 
     }
 }
 
+// A helper struct used to create new HOG files on disk.
 pub struct HogFileWriter {
     file: BufWriter<File>,
 }
@@ -164,6 +175,7 @@ impl HogFileWriter {
     }
 }
 
+// A helper struct used to read HOG files from disk.
 pub struct HogFileReader {
     file: BufReader<File>,
 }
@@ -205,6 +217,8 @@ impl HogFileReader {
     }
 }
 
+// A HogRecord Iterator that cann be used to walk over the individual files in
+// the HOG file.
 pub struct HogRecordIter<'a> {
     hogfile: &'a mut HogFileReader,
     cur_file_len: Option<u64>,
@@ -248,6 +262,20 @@ impl<'a> Iterator for HogRecordIter<'a> {
     }
 }
 
+// While iterating over each HogRecord, copy_cur_file() can be called on the
+// iterator to save the contents of the last emitted HogRecord to an arbitrary
+// Writer. If copy_cur_file() is not called on the item, then the body of the
+// file is simply skipped by the Iterator when moving on to the next file.
+//
+// This function is implemented for the iterator, rather than the emitted
+// element, because the iterator needs to keep track of the cursor position in
+// the on-disk HOG file, so that it can easily advance to the next element.
+//
+// TODO: Explore having the iterator simply store the file offset it needs to
+// process next, and always seek back to that position to yield the next element
+// when next() is called. This should have the advantage of allowing
+// copy_cur_file to be implemented on HogRecord itself, which could move the
+// file cursor without impacting the iterator behavior.
 impl<'a> HogRecordIter<'a> {
     /// Copy the last encountered file to the destation buffer.
     pub fn copy_cur_file(&mut self, out_f: &mut impl Write) -> Result<(), HogError> {
